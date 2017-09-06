@@ -1,0 +1,314 @@
+package com.example.daveh.healthmonitor;//add your own package name
+
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.icu.text.AlphabeticIndex;
+import android.view.View;
+
+import android.graphics.Paint.Align;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
+import android.widget.Toast;
+import android.util.*;
+
+import java.util.ArrayList;
+import java.util.Random;
+
+/**
+ * GraphView creates a scaled line or bar graph with x and y axis labels.
+ * @author Arno den Hond
+ *
+ */
+public class GraphView extends View {
+
+    public static boolean BAR = false;
+    public static boolean LINE = true;
+
+    private Paint paint;
+    private ArrayList<Float> values = null;
+    private String[] horlabels;
+    private String[] verlabels;
+    private String title;
+    private Canvas canvas;
+    private boolean type;
+    private float border, leftGraphBorder, rightGraphBorder, topGraphBorder, bottomGraphBorder;
+    private float height, width, diff;
+    private float graphHeight, graphWidth;
+    private float min, max;
+    private boolean cancel = false;
+
+    public GraphView(Context context, ArrayList<Float> values, String title, String[] horlabels, String[] verlabels, boolean type) {
+        super(context);
+        if (values == null)
+            this.values = new ArrayList<Float>();
+        else
+            this.values = values;
+
+        if (title == null)
+            title = "";
+        else
+            this.title = title;
+
+        if (horlabels == null)
+            this.horlabels = new String[0];
+        else
+            this.horlabels = horlabels;
+
+        if (verlabels == null)
+            this.verlabels = new String[0];
+        else
+            this.verlabels = verlabels;
+
+        this.type = type;
+        paint = new Paint();
+    }
+
+    public void setValues(ArrayList<Float> newValues)
+    {
+        this.values = newValues;
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        border = 60;
+        rightGraphBorder = border / 3;
+        leftGraphBorder = border * 2;
+        topGraphBorder = border * 6;
+        bottomGraphBorder = border;
+        height = getHeight();
+        width = getWidth();
+        diff = max - min;
+        graphHeight = height - (topGraphBorder + bottomGraphBorder);
+        graphWidth = width - (leftGraphBorder + rightGraphBorder);
+        this.canvas = canvas;
+        max = getMax();
+        min = getMin();
+
+        //Draw view background
+        Rect rect = new Rect(0,0,getWidth(), getHeight());
+        paint.setColor(Color.DKGRAY);
+        paint.setStyle(Paint.Style.FILL);
+        canvas.drawRect(rect, paint);
+
+        //Draw top-left control box
+        rect = new Rect(0, 0, 1250, getHeight() / 4);
+        paint.setColor(Color.LTGRAY);
+        paint.setStyle(Paint.Style.FILL);
+        canvas.drawRect(rect, paint);
+
+        //Draw graph background
+        drawGraphBackground(leftGraphBorder, topGraphBorder, width - rightGraphBorder,
+                height - bottomGraphBorder);
+
+        //Draw graph lines with labels
+        drawGraphGrid();
+
+        //Draw graph title
+        paint.setTextAlign(Paint.Align.CENTER);
+        paint.setTextSize(70);
+        paint.setColor(Color.LTGRAY);
+        canvas.drawText(title, (graphWidth / 2) + leftGraphBorder, topGraphBorder - border + 30, paint);
+    }
+
+    private float getMax() {
+        float largest = Integer.MIN_VALUE;
+
+        if (values == null)
+            largest = 0;
+        else {
+            for (int i = 0; i < values.size(); i++)
+                if (values.get(i) > largest)
+                    largest = values.get(i);
+        }
+        //largest = 3000;
+        return largest;
+    }
+
+    private float getMin() {
+        float smallest = Integer.MAX_VALUE;
+
+        if (values == null)
+            smallest = 0;
+        else {
+            for (int i = 0; i < values.size(); i++)
+                if (values.get(i) < smallest)
+                    smallest = values.get(i);
+        }
+
+        //smallest = 0;
+        return smallest;
+    }
+
+    private void drawGraphBackground(float startX, float startY, float endX, float endY){
+        paint.setColor(Color.BLACK);
+        paint.setStyle(Paint.Style.FILL);
+        canvas.drawRect(startX, startY, endX, endY, paint);
+    }
+
+    private void drawGraphGrid(){
+
+        float width = getWidth();
+        float height = getHeight();
+
+        paint.setTextAlign(Paint.Align.LEFT);
+        int vers = verlabels.length - 1;
+        for (int i = 0; i < verlabels.length; i++) {
+            //Draw horizontal lines
+            paint.setColor(Color.LTGRAY);
+            float y = ((graphHeight / vers) * i) + topGraphBorder;
+            canvas.drawLine(leftGraphBorder, y, width - rightGraphBorder, y, paint);
+
+            //Draw y labels
+            paint.setTextSize(50);
+            canvas.drawText(verlabels[vers - i], 0, y, paint);
+        }
+
+        int hors = horlabels.length - 1;
+        for (int i = 0; i < horlabels.length; i++) {
+            //Draw vertical lines
+            paint.setColor(Color.LTGRAY);
+            float x = ((graphWidth / hors) * i) + leftGraphBorder;
+            canvas.drawLine(x, topGraphBorder, x, height - bottomGraphBorder, paint);
+
+            //Draw x labels
+            paint.setTextAlign(Paint.Align.CENTER);
+            if (i==horlabels.length-1)
+                paint.setTextAlign(Paint.Align.RIGHT);
+            if (i==0)
+                paint.setTextAlign(Paint.Align.LEFT);
+            paint.setTextSize(50);
+            canvas.drawText(horlabels[i], x, height - 4, paint);
+        }
+    }
+
+    public void addControls(Context context, RelativeLayout layout){
+        final Button runButton, stopButton;
+        EditText idEditText, ageEditText, nameEditText;
+
+        final float button_y = 30;
+        final float button_width = (float)0.9;
+        final float edit_text_y = 40;
+
+
+        runButton = new Button(context);
+        runButton.setText("Run");
+        runButton.setBackgroundColor(Color.GREEN);
+        runButton.setTextColor(Color.BLACK);
+        runButton.setTextSize(20);
+        runButton.setX(1230);
+        runButton.setY(button_y);
+        runButton.setScaleX(button_width);
+        runButton.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        runButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                runGraph();
+                Toast msg = Toast.makeText(getContext(), "Running...", Toast.LENGTH_SHORT);
+                msg.show();
+            }
+        });
+
+        stopButton = new Button(context);
+        stopButton.setText("Stop");
+        stopButton.setBackgroundColor(Color.RED);
+        stopButton.setTextColor(Color.BLACK);
+        stopButton.setTextSize(20);
+        stopButton.setX(1500);
+        stopButton.setY(button_y);
+        stopButton.setScaleX(button_width);
+        stopButton.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        stopButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                stopGraph();
+                Toast msg = Toast.makeText(getContext(), "Stopping...", Toast.LENGTH_SHORT);
+                msg.show();
+            }
+        });
+
+        idEditText = new EditText(context);
+        idEditText.setX(100);
+        idEditText.setY(edit_text_y);
+
+        ageEditText = new EditText(context);
+        ageEditText.setX(300);
+        ageEditText.setY(edit_text_y);
+
+        nameEditText = new EditText(context);
+        nameEditText.setX(550);
+        nameEditText.setY(edit_text_y);
+
+        layout.addView(idEditText);
+        layout.addView(ageEditText);
+        layout.addView(nameEditText);
+        layout.addView(runButton);
+        layout.addView(stopButton);
+
+    }
+
+    private void runGraph(){
+        final int array_size = 20;
+        final long speed = 1000;
+        Random rand = new Random();
+
+        this.cancel = false;
+
+        if (values.size() == 0){
+            for (int i = 0; i < array_size; i++){
+                values.add((float)rand.nextInt(2000));
+            }
+        }
+
+        drawLineGraph();
+
+        /*while (this.cancel == false){
+            drawLineGraph();
+
+            try {
+                Thread.sleep(speed);
+            }catch(Exception e){
+                Log.d("runGraph error", e.toString());
+            }
+
+            values.remove(0);
+            values.add((float)rand.nextInt(2000));
+        }*/
+    }
+
+    private void stopGraph(){
+        this.cancel = true;
+    }
+
+    private void drawLineGraph(){
+        float startX, startY, stopX, stopY;
+        int leftX = (int)(leftGraphBorder);
+        int rightX = (int)(getWidth() - rightGraphBorder);
+        int topY = (int)(topGraphBorder);
+        int bottomY = (int)(getHeight() - bottomGraphBorder);
+
+        //drawGraphBackground(leftGraphBorder, topGraphBorder, width - rightGraphBorder, height - bottomGraphBorder);
+        //drawGraphGrid();
+
+        int pointWidth = (int)((rightX - leftX) / (values.size() - 1));
+        paint.setColor(Color.GREEN);
+        paint.setStrokeWidth(5);
+
+        /*for (int i = 0; i < (values.size() - 1); i++){
+            startX = (i * pointWidth) + leftX;
+            startY = (bottomY - ((values.get(i) / 2000) * (graphHeight)));
+            stopX = ((i + 1) * pointWidth) + leftX;
+            stopY = (bottomY - ((values.get(i + 1) / 2000) * (graphHeight)));
+
+            canvas.drawLine(startX, startY, stopX, stopY, paint);
+        }*/
+
+    }
+
+}
